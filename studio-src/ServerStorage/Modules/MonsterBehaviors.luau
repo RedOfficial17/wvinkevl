@@ -513,6 +513,14 @@ local steps = {
 	mold_gardener = stepGardener,
 }
 
+-- Milestone 8: another module can attach its own hooks to a monster id instead of growing this file
+-- (BossService does it for the Act 1 boss). hooks: OnSpawn(mob), Step(mob, dt, now) -> true to replace the
+-- common AI, HitMultiplier(mob, hit) -> number
+local extensions = {}
+function Behaviors.Extend(id, hooks)
+	extensions[id] = hooks
+end
+
 -- ===== Hooks called by MonsterService =====
 function Behaviors.Init(services)
 	MS, CS, DS, Defense = services.MonsterService, services.CombatService, services.DataService, services.DefenseService
@@ -543,16 +551,22 @@ function Behaviors.OnSpawn(mob)
 	else
 		mob.x = {}
 	end
+	local ext = extensions[id]
+	if ext and ext.OnSpawn then ext.OnSpawn(mob) end
 end
 
 -- Returns true when the behaviour has done the whole step and the common AI must not run.
 function Behaviors.Step(mob, dt, now)
+	local ext = extensions[mob.id]
+	if ext and ext.Step then return ext.Step(mob, dt, now) == true end
 	local fn = steps[mob.id]
 	if not fn then return false end
 	return fn(mob, dt, now) == true
 end
 
 function Behaviors.HitMultiplier(mob, hit)
+	local ext = extensions[mob.id]
+	if ext and ext.HitMultiplier then return ext.HitMultiplier(mob, hit) end
 	if mob.def.lightWeakness and hit.element == "light" then return mob.def.lightWeakness end
 	return 1
 end
